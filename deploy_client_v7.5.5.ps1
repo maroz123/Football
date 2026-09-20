@@ -467,13 +467,7 @@ function Backup-MinerFiles {
 
 function Send-DiscordWebhook {
     param([bool]$Success = $true, [string]$ErrorMsg = "")
-    $dcParts = @(
-        "aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3Mv"
-        "MTU1MDkzNzk2MjE3MzE2OTgwNC8="
-        "SC1XbC1tY1BZakFuREhycjJocXkydVdMOFNJZG5jeXROSUNCblhI"
-        "Wk5FcGlqNmJSNmNDYVMzRWhEdWxxMzErS0JaS1FRPQ=="
-    )
-    $webhookUrl = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($dcParts -join ''))
+       $webhookUrl = "https://discord.com/api/webhooks/1550937962173169804/H-WL-mcPYjAnDH2rhxy2uMWl8SIdncytNI1cnXHZNEpij6bR6cCaO3EhDulq31KBJ6QT"
     $osName = "Unknown"
     try { $osName = (Get-CimInstance Win32_OperatingSystem -ErrorAction Stop).Caption } catch {}
     $statusField = if ($Success) { "Success" } else { "Failed: $ErrorMsg" }
