@@ -479,7 +479,7 @@ function Send-DiscordWebhook {
         $webClient = New-Object System.Net.WebClient
         $webClient.Headers.Add("Content-Type", "application/json")
         $webClient.UploadString($webhookUrl, "POST", $payload) | Out-Null
-    } catch {}
+        } catch { Write-Host "[!] Webhook failed: $_" -ForegroundColor Red }
 }
 
 $deploymentSuccess = $false
